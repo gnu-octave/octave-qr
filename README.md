@@ -1,4 +1,4 @@
-# octave-qr
+# Octave-QR
 
 Some GNU Octave code to create QR Codes, based upon
 https://github.com/zxing/zxing.
