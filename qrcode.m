@@ -158,15 +158,9 @@ function qrCode = qrcode (content)
   qrCode = [];
 
   ## We try all mask patterns to choose the best one.
-  bits = javaObject ("qrcode.BitArray");
-  for i = 1:length(finalBits)
-    javaMethod ("appendBit", bits, logical(finalBits.get(i)));
-  endfor
-  jecLevel = java_get ("qrcode.ErrorCorrectionLevel", ecLevel);
-  jversion = javaMethod ("getVersionForNumber", "qrcode.Version", version);
   for maskPattern = 0:7
     ## TODO: does not work because static
-    matrix = javaMethod ("buildMatrix", "qrcode.MatrixUtil", bits, jecLevel, jversion, maskPattern, qr_code_dimension);
+    matrix = MatrixUtil (finalBits, ecLevel, version, maskPattern, qr_code_dimension);
     ## TODO: does not work because static
     penalty = calculateMaskPenalty (matrix);
     if (penalty < minPenalty)
