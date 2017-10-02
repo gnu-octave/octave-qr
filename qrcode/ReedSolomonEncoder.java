@@ -30,8 +30,8 @@ public final class ReedSolomonEncoder {
   private final GenericGF field;
   private final List<GenericGFPoly> cachedGenerators;
 
-  public ReedSolomonEncoder(GenericGF field) {
-    this.field = field;
+  public ReedSolomonEncoder() {
+    this.field = GenericGF.QR_CODE_FIELD_256;
     this.cachedGenerators = new ArrayList<>();
     cachedGenerators.add(new GenericGFPoly(field, new int[]{1}));
   }
@@ -49,7 +49,7 @@ public final class ReedSolomonEncoder {
     return cachedGenerators.get(degree);
   }
 
-  public void encode(int[] toEncode, int ecBytes) {
+  public int[] encode(int[] toEncode, int ecBytes) {
     if (ecBytes == 0) {
       throw new IllegalArgumentException("No error correction bytes");
     }
@@ -69,6 +69,7 @@ public final class ReedSolomonEncoder {
       toEncode[dataBytes + i] = 0;
     }
     System.arraycopy(coefficients, 0, toEncode, dataBytes + numZeroCoefficients, coefficients.length);
+    return toEncode;
   }
 
 }

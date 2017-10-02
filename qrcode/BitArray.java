@@ -133,86 +133,6 @@ public final class BitArray implements Cloneable {
     return result > size ? size : result;
   }
 
-  /**
-   * Sets a block of 32 bits, starting at bit i.
-   *
-   * @param i first bit to set
-   * @param newBits the new value of the next 32 bits. Note again that the least-significant bit
-   * corresponds to bit i, the next-least-significant to i+1, and so on.
-   */
-  public void setBulk(int i, int newBits) {
-    bits[i / 32] = newBits;
-  }
-
-  /**
-   * Sets a range of bits.
-   *
-   * @param start start of range, inclusive.
-   * @param end end of range, exclusive
-   */
-  public void setRange(int start, int end) {
-    if (end < start || start < 0 || end > size) {
-      throw new IllegalArgumentException();
-    }
-    if (end == start) {
-      return;
-    }
-    end--; // will be easier to treat this as the last actually set bit -- inclusive
-    int firstInt = start / 32;
-    int lastInt = end / 32;
-    for (int i = firstInt; i <= lastInt; i++) {
-      int firstBit = i > firstInt ? 0 : start & 0x1F;
-      int lastBit = i < lastInt ? 31 : end & 0x1F;
-      // Ones from firstBit to lastBit, inclusive
-      int mask = (2 << lastBit) - (1 << firstBit);
-      bits[i] |= mask;
-    }
-  }
-
-  /**
-   * Clears all bits (sets to false).
-   */
-  public void clear() {
-    int max = bits.length;
-    for (int i = 0; i < max; i++) {
-      bits[i] = 0;
-    }
-  }
-
-  /**
-   * Efficient method to check if a range of bits is set, or not set.
-   *
-   * @param start start of range, inclusive.
-   * @param end end of range, exclusive
-   * @param value if true, checks that bits in range are set, otherwise checks that they are not set
-   * @return true iff all bits are set or not set in range, according to value argument
-   * @throws IllegalArgumentException if end is less than start or the range is not contained in the array
-   */
-  public boolean isRange(int start, int end, boolean value) {
-    if (end < start || start < 0 || end > size) {
-      throw new IllegalArgumentException();
-    }
-    if (end == start) {
-      return true; // empty range matches
-    }
-    end--; // will be easier to treat this as the last actually set bit -- inclusive
-    int firstInt = start / 32;
-    int lastInt = end / 32;
-    for (int i = firstInt; i <= lastInt; i++) {
-      int firstBit = i > firstInt ? 0 : start & 0x1F;
-      int lastBit = i < lastInt ? 31 : end & 0x1F;
-      // Ones from firstBit to lastBit, inclusive
-      int mask = (2 << lastBit) - (1 << firstBit);
-
-      // Return false if we're looking for 1s and the masked bits[i] isn't all 1s (that is,
-      // equals the mask, or we're looking for 0s and the masked portion is not all 0s
-      if ((bits[i] & mask) != (value ? mask : 0)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
   public void appendBit(boolean bit) {
     ensureCapacity(size + 1);
     if (bit) {
@@ -262,7 +182,7 @@ public final class BitArray implements Cloneable {
    *
    * @param bitOffset first bit to start writing
    * @param array array to write into. Bytes are written most-significant byte first. This is the opposite
-   *  of the internal representation, which is exposed by {@link #getBitArray()}
+   *  of the internal representation, which is exposed by {@link }
    * @param offset position in array to start writing
    * @param numBytes how many bytes to write
    */
@@ -277,46 +197,6 @@ public final class BitArray implements Cloneable {
       }
       array[offset + i] = (byte) theByte;
     }
-  }
-
-  /**
-   * @return underlying array of ints. The first element holds the first 32 bits, and the least
-   *         significant bit is bit 0.
-   */
-  public int[] getBitArray() {
-    return bits;
-  }
-
-  /**
-   * Reverses all bits in the array.
-   */
-  public void reverse() {
-    int[] newBits = new int[bits.length];
-    // reverse all int's first
-    int len = (size - 1) / 32;
-    int oldBitsLen = len + 1;
-    for (int i = 0; i < oldBitsLen; i++) {
-      long x = bits[i];
-      x = ((x >>  1) & 0x55555555L) | ((x & 0x55555555L) <<  1);
-      x = ((x >>  2) & 0x33333333L) | ((x & 0x33333333L) <<  2);
-      x = ((x >>  4) & 0x0f0f0f0fL) | ((x & 0x0f0f0f0fL) <<  4);
-      x = ((x >>  8) & 0x00ff00ffL) | ((x & 0x00ff00ffL) <<  8);
-      x = ((x >> 16) & 0x0000ffffL) | ((x & 0x0000ffffL) << 16);
-      newBits[len - i] = (int) x;
-    }
-    // now correct the int's if the bit size isn't a multiple of 32
-    if (size != oldBitsLen * 32) {
-      int leftOffset = oldBitsLen * 32 - size;
-      int currentInt = newBits[0] >>> leftOffset;
-      for (int i = 1; i < oldBitsLen; i++) {
-        int nextInt = newBits[i];
-        currentInt |= nextInt << (32 - leftOffset);
-        newBits[i - 1] = currentInt;
-        currentInt = nextInt >>> leftOffset;
-      }
-      newBits[oldBitsLen - 1] = currentInt;
-    }
-    bits = newBits;
   }
 
   private static int[] makeArray(int size) {

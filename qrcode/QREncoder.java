@@ -112,12 +112,12 @@ public final class QREncoder {
 
   // Choose the mask pattern and set to "qrCode".
   int dimension = version.getDimensionForVersion();
-  ByteMatrix matrix = new ByteMatrix(dimension, dimension);
-  int maskPattern = chooseMaskPattern(finalBits, ecLevel, version, matrix);
+  
+  int maskPattern = chooseMaskPattern(finalBits, ecLevel, version, dimension);
   qrCode.setMaskPattern(maskPattern);
 
   // Build the matrix and set it to "qrCode".
-  MatrixUtil.buildMatrix(finalBits, ecLevel, version, maskPattern, matrix);
+  ByteMatrix matrix = MatrixUtil.buildMatrix(finalBits, ecLevel, version, maskPattern, dimension);
   qrCode.setMatrix(matrix);
 
   return qrCode;
@@ -216,14 +216,14 @@ public final class QREncoder {
   return true;
   }
 
-  private static int chooseMaskPattern(BitArray bits, ErrorCorrectionLevel ecLevel, Version version, ByteMatrix matrix)
+  private static int chooseMaskPattern(BitArray bits, ErrorCorrectionLevel ecLevel, Version version, int dimension)
       throws WriterException {
 
   int minPenalty = Integer.MAX_VALUE; // Lower penalty is better.
   int bestMaskPattern = -1;
   // We try all mask patterns to choose the best one.
   for (int maskPattern = 0; maskPattern < QRCode.NUM_MASK_PATTERNS; maskPattern++) {
-    MatrixUtil.buildMatrix(bits, ecLevel, version, maskPattern, matrix);
+    ByteMatrix matrix = MatrixUtil.buildMatrix(bits, ecLevel, version, maskPattern, dimension);
     int penalty = calculateMaskPenalty(matrix);
     if (penalty < minPenalty) {
       minPenalty = penalty;
@@ -418,7 +418,7 @@ public final class QREncoder {
   for (int i = 0; i < numDataBytes; i++) {
     toEncode[i] = dataBytes[i] & 0xFF;
   }
-  new ReedSolomonEncoder(GenericGF.QR_CODE_FIELD_256).encode(toEncode, numEcBytesInBlock);
+  new ReedSolomonEncoder().encode(toEncode, numEcBytesInBlock);
 
   byte[] ecBytes = new byte[numEcBytesInBlock];
   for (int i = 0; i < numEcBytesInBlock; i++) {

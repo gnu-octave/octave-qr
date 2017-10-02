@@ -92,8 +92,9 @@ final class MatrixUtil {
   // Build 2D matrix of QR Code from "dataBits" with "ecLevel", "version" and
   // "getMaskPattern". On
   // success, store the result in "matrix" and return true.
-  static void buildMatrix(BitArray dataBits, ErrorCorrectionLevel ecLevel, Version version, int maskPattern,
-      ByteMatrix matrix) throws WriterException {
+  static ByteMatrix buildMatrix(BitArray dataBits, ErrorCorrectionLevel ecLevel, Version version, int maskPattern,
+      int dimension) throws WriterException {
+  ByteMatrix matrix = new ByteMatrix(dimension, dimension);
   matrix.clear((byte) -1);
   embedBasicPatterns(version, matrix);
   // Type information appear with any version.
@@ -102,6 +103,7 @@ final class MatrixUtil {
   maybeEmbedVersionInfo(version, matrix);
   // Data should be embedded at end.
   embedDataBits(dataBits, maskPattern, matrix);
+  return matrix;
   }
 
   // Embed basic patterns. On success, modify the matrix and return true.
