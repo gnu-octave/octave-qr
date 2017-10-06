@@ -93,7 +93,7 @@ classdef BitArray < handle
     endfunction
 
     function xor(obj, other)
-      obj.bits = xor (obj.bits, logical (other));
+      obj.bits = xor (obj.bits(:), logical (other.bits(:)));
     endfunction
 
     ## @param bitOffset first bit to start writing
