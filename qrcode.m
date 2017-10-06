@@ -160,7 +160,7 @@ function qrCode = qrcode (content)
   ## We try all mask patterns to choose the best one.
   for maskPattern = 0:7
     ## TODO: does not work because static
-    matrix = MatrixUtil (finalBits, ecLevel, version, maskPattern, qr_code_dimension);
+    matrix = MatrixUtil (finalBits, ecLevelBits, version, maskPattern, qr_code_dimension);
     ## TODO: does not work because static
     penalty = calculateMaskPenalty (matrix);
     if (penalty < minPenalty)

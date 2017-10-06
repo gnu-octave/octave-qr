@@ -17,81 +17,13 @@
 ## Author satorux@google.com (Satoru Takabayashi) - creator
 ## Author dswitkin@google.com (Daniel Switkin) - ported from C++
 
-## Build 2D matrix of QR Code from "dataBits" with "ecLevel", "version" and
+## Build 2D matrix of QR Code from "dataBits" with "ecLevelBits", "version" and
 ## "getMaskPattern".  On success, store the result in "matrix" and return true.
-function matrix = MatrixUtil (dataBits, ecLevel, version, maskPattern, dimension)
-
-  POSITION_DETECTION_PATTERN = logical ([...
-    1, 1, 1, 1, 1, 1, 1;
-    1, 0, 0, 0, 0, 0, 1;
-    1, 0, 1, 1, 1, 0, 1;
-    1, 0, 1, 1, 1, 0, 1;
-    1, 0, 1, 1, 1, 0, 1;
-    1, 0, 0, 0, 0, 0, 1;
-    1, 1, 1, 1, 1, 1, 1]);
-
-  POSITION_ADJUSTMENT_PATTERN = logical ([ ...
-    1, 1, 1, 1, 1;
-    1, 0, 0, 0, 1;
-    1, 0, 1, 0, 1;
-    1, 0, 0, 0, 1;
-    1, 1, 1, 1, 1]);
-
-  ## From Appendix E. Table 1, JIS0510X:2004 (p 71).  The table was double-
-  ## checked by komatsu.
-  POSITION_ADJUSTMENT_PATTERN_COORDINATE_TABLE = [ ...
-    -1, -1, -1, -1,  -1,  -1,  -1; ... # Version 1
-     6, 18, -1, -1,  -1,  -1,  -1; ... # Version 2
-     6, 22, -1, -1,  -1,  -1,  -1; ... # Version 3
-     6, 26, -1, -1,  -1,  -1,  -1; ... # Version 4
-     6, 30, -1, -1,  -1,  -1,  -1; ... # Version 5
-     6, 34, -1, -1,  -1,  -1,  -1; ... # Version 6
-     6, 22, 38, -1,  -1,  -1,  -1; ... # Version 7
-     6, 24, 42, -1,  -1,  -1,  -1; ... # Version 8
-     6, 26, 46, -1,  -1,  -1,  -1; ... # Version 9
-     6, 28, 50, -1,  -1,  -1,  -1; ... # Version 10
-     6, 30, 54, -1,  -1,  -1,  -1; ... # Version 11
-     6, 32, 58, -1,  -1,  -1,  -1; ... # Version 12
-     6, 34, 62, -1,  -1,  -1,  -1; ... # Version 13
-     6, 26, 46, 66,  -1,  -1,  -1; ... # Version 14
-     6, 26, 48, 70,  -1,  -1,  -1; ... # Version 15
-     6, 26, 50, 74,  -1,  -1,  -1; ... # Version 16
-     6, 30, 54, 78,  -1,  -1,  -1; ... # Version 17
-     6, 30, 56, 82,  -1,  -1,  -1; ... # Version 18
-     6, 30, 58, 86,  -1,  -1,  -1; ... # Version 19
-     6, 34, 62, 90,  -1,  -1,  -1; ... # Version 20
-     6, 28, 50, 72,  94,  -1,  -1; ... # Version 21
-     6, 26, 50, 74,  98,  -1,  -1; ... # Version 22
-     6, 30, 54, 78, 102,  -1,  -1; ... # Version 23
-     6, 28, 54, 80, 106,  -1,  -1; ... # Version 24
-     6, 32, 58, 84, 110,  -1,  -1; ... # Version 25
-     6, 30, 58, 86, 114,  -1,  -1; ... # Version 26
-     6, 34, 62, 90, 118,  -1,  -1; ... # Version 27
-     6, 26, 50, 74,  98, 122,  -1; ... # Version 28
-     6, 30, 54, 78, 102, 126,  -1; ... # Version 29
-     6, 26, 52, 78, 104, 130,  -1; ... # Version 30
-     6, 30, 56, 82, 108, 134,  -1; ... # Version 31
-     6, 34, 60, 86, 112, 138,  -1; ... # Version 32
-     6, 30, 58, 86, 114, 142,  -1; ... # Version 33
-     6, 34, 62, 90, 118, 146,  -1; ... # Version 34
-     6, 30, 54, 78, 102, 126, 150; ... # Version 35
-     6, 24, 50, 76, 102, 128, 154; ... # Version 36
-     6, 28, 54, 80, 106, 132, 158; ... # Version 37
-     6, 32, 58, 84, 110, 136, 162; ... # Version 38
-     6, 26, 54, 82, 110, 138, 166; ... # Version 39
-     6, 30, 58, 86, 114, 142, 170];    # Version 40
-
-  ## From Appendix D in JISX0510:2004 (p. 67)
-  VERSION_INFO_POLY = 0x1f25;  # 1 1111 0010 0101
-
-  ## From Appendix C in JISX0510:2004 (p.65).
-  TYPE_INFO_POLY = 0x537;
-  TYPE_INFO_MASK_PATTERN = 0x5412;
-
+function matrix = MatrixUtil (dataBits, ecLevelBits, version, maskPattern, dimension)
   matrix = -ones (dimension);
   matrix = embedBasicPatterns (version, matrix);
   ## Type information appear with any version.
-  matrix = embedTypeInfo (ecLevel, maskPattern, matrix);
+  matrix = embedTypeInfo (ecLevelBits, maskPattern, matrix);
   ## Version info appear if version >= 7.
   matrix = maybeEmbedVersionInfo (version, matrix);
   ## Data should be embedded at end.
@@ -106,58 +38,49 @@ endfunction
 ## - Dark dot at the left bottom corner
 ## - Position adjustment patterns, if need be
 function matrix = embedBasicPatterns (ver, matrix)
-  ## Let's get started with embedding big squares at corners.
-  matrix = embedPositionDetectionPatternsAndSeparators (matrix);
-  ## Then, embed the dark dot at the left bottom corner.
-  matrix = embedDarkDotAtLeftBottomCorner (matrix);
+  ## Embed position detection patterns (the three big squares at corners) and
+  ## surrounding vertical/horizontal separators.
+  POSITION_DETECTION_PATTERN = [...
+    1, 1, 1, 1, 1, 1, 1;
+    1, 0, 0, 0, 0, 0, 1;
+    1, 0, 1, 1, 1, 0, 1;
+    1, 0, 1, 1, 1, 0, 1;
+    1, 0, 1, 1, 1, 0, 1;
+    1, 0, 0, 0, 0, 0, 1;
+    1, 1, 1, 1, 1, 1, 1];
+  ## Left top corner.
+  matrix(1:8, 1:8) = zeros (8, 8);
+  matrix(1:7, 1:7) = POSITION_DETECTION_PATTERN;
+  ## Right top corner.
+  matrix(1:8, end-7:end) = zeros (8, 8);
+  matrix(1:7, end-6:end) = POSITION_DETECTION_PATTERN;
+  ## Left bottom corner.
+  matrix(end-7:end, 1:8) = zeros (8, 8);
+  matrix(end-6:end, 1:7) = POSITION_DETECTION_PATTERN;
+
+  ## Embed the lonely dark dot at left bottom corner.  JISX0510:2004 (p.46)
+  matrix(end - 7, 9) = 1;
 
   ## Position adjustment patterns appear if version >= 2.
   matrix = maybeEmbedPositionAdjustmentPatterns (ver, matrix);
   ## Timing patterns should be embedded after position adj. patterns.
-  matrix = embedTimingPatterns (matrix);
+  TIMING_PATTERN = mod (1:length(matrix) - 16, 2);
+  matrix(7,9:end-8) = TIMING_PATTERN;
+  matrix(9:end-8,7) = TIMING_PATTERN;
 endfunction
 
 
 ## Embed type information. On success, modify the matrix.
-function matrix = embedTypeInfo(ecLevel, maskPattern, matrix)
-  typeInfoBits = makeTypeInfoBits (ecLevel, maskPattern);
-
-  ## Type info cells at the left top corner.
-  TYPE_INFO_COORDINATES = [ ...
-    8, 0;
-    8, 1;
-    8, 2;
-    8, 3;
-    8, 4;
-    8, 5;
-    8, 7;
-    8, 8;
-    7, 8;
-    5, 8;
-    4, 8;
-    3, 8;
-    2, 8;
-    1, 8;
-    0, 8];
-
-  for i = 1:typeInfoBits.getSize()
-    ## Place bits in LSB to MSB order.  LSB (least significant bit) is the
-    ## last value in "typeInfoBits".
-    bit = typeInfoBits.get(typeInfoBits.getSize() - i + 1);
-
-    ## Type info bits at the left top corner. See 8.9 of JISX0510:2004 (p.46).
-    x1 = TYPE_INFO_COORDINATES(i,1);
-    y1 = TYPE_INFO_COORDINATES(i,2);
-    matrix(x1, y1) = bit;
-
-    if (i <= 8)
-      ## Right top corner.
-      matrix(x2, end - i) = bit;
-    else
-      ## Left bottom corner.
-      matrix(8, end - 16 + i) = bit;
-    endif
-  endfor
+function matrix = embedTypeInfo(ecLevelBits, maskPattern, matrix)
+  typeInfoBits = makeTypeInfoBits (ecLevelBits, maskPattern);
+  ## Left top corner.
+  matrix(9,[1:6,8]) = typeInfoBits(1:7);
+  matrix([1:6,8:9],9) = typeInfoBits(end:-1:end-7);
+  
+  ## Left bottom corner.
+  matrix(end-6:end,9) = typeInfoBits(7:-1:1);
+  ## Right top corner.
+  matrix(9,end-7:end) = typeInfoBits(end-7:end);
 endfunction
 
 
@@ -242,7 +165,10 @@ endfunction
 ## - findMSBSet(1) => 1
 ## - findMSBSet(255) => 8
 function val = findMSBSet (value)
-  val = 32 - Integer.numberOfLeadingZeros(value);
+  val = length (dec2bin (uint32 (value)));
+  if (uint32 (value) == 0)
+    val = 0;
+  endif
 endfunction
 
 
@@ -280,40 +206,47 @@ function value = calculateBCHCode (value, poly)
   ## If poly is "1 1111 0010 0101" (version info poly), msbSetInPoly is 13.
   ## We'll subtract 1 from 13 to make it 12.
   msbSetInPoly = findMSBSet (poly);
-  value <<= msbSetInPoly - 1;
+  value = uint32 (value);
+  value *= 2^(msbSetInPoly - 1);
   ## Do the division business using exclusive-or operations.
-  while (findMSBSet(value) >= msbSetInPoly) {
-    value ^= poly << (findMSBSet(value) - msbSetInPoly);
-  }
+  while (findMSBSet (value) >= msbSetInPoly)
+    value = bitxor (value, poly * 2^(findMSBSet (value) - msbSetInPoly));
+  endwhile
   ## Now the "value" is the remainder (i.e. the BCH code)
 endfunction
 
 
 ## Make bit vector of type information. On success, store the result in "bits"
-## and return true.
-## Encode error correction level and mask pattern. See 8.9 of
-## JISX0510:2004 (p.45) for details.
-function bits = makeTypeInfoBits (ecLevel, maskPattern)
+## and return true.  Encode error correction level and mask pattern.  See 8.9
+## of JISX0510:2004 (p.45) for details.
+function bits = makeTypeInfoBits (ecLevelBits, maskPattern)
   bits = BitArray();
-  typeInfo = (ecLevel.getBits() << 3) | maskPattern;
-  bits.appendBits(typeInfo, 5);
+  typeInfo = bitor (uint32 (ecLevelBits * 2^3), maskPattern);
+  bits.appendBits (typeInfo, 5);
 
-  bchCode = calculateBCHCode(typeInfo, TYPE_INFO_POLY);
-  bits.appendBits(bchCode, 10);
+  ## From Appendix C in JISX0510:2004 (p.65).
+  TYPE_INFO_POLY = 0x537;
+  bchCode = calculateBCHCode (typeInfo, TYPE_INFO_POLY);
+  bits.appendBits (bchCode, 10);
 
+  ## From Appendix C in JISX0510:2004 (p.65).
+  TYPE_INFO_MASK_PATTERN = 0x5412;
   maskBits = BitArray();
-  maskBits.appendBits(TYPE_INFO_MASK_PATTERN, 15);
+  maskBits.appendBits (TYPE_INFO_MASK_PATTERN, 15);
   bits.xor (maskBits);
 
   if (bits.getSize() != 15) # Just in case.
     error ("MatrixUtil: should not happen but we got: %d", bits.getSize());
   endif
+  bits = bits.bits;
 endfunction
 
 
 ## Make bit vector of version information. On success, store the result in
 ## "bits" and return true.  See 8.10 of JISX0510:2004 (p.45) for details.
 function bits = makeVersionInfoBits (ver)
+  ## From Appendix D in JISX0510:2004 (p. 67)
+  VERSION_INFO_POLY = 0x1f25;  # 1 1111 0010 0101
   bits = BitArray ();
   bits.appendBits(ver, 6);
   bchCode = calculateBCHCode(ver, VERSION_INFO_POLY);
@@ -325,122 +258,70 @@ function bits = makeVersionInfoBits (ver)
 endfunction
 
 
-## Check if "value" is empty.
-function bool = isEmpty(int value)
-  bool = (value == -1);
-endfunction
-
-
-function matrix = embedTimingPatterns (matrix)
-  ## -8 is for skipping position detection patterns (size 7), and two
-  ## horizontal/vertical separation patterns (size 1).  Thus, 8 = 7 + 1.
-  for (int i = 8; i < matrix.getWidth() - 8; ++i)
-    int bit = (i + 1) % 2;
-    ## Horizontal line.
-    if (isEmpty(matrix.get(i, 6)))
-      matrix.set(i, 6, bit);
-    endif
-    ## Vertical line.
-    if (isEmpty(matrix.get(6, i)))
-      matrix.set(6, i, bit);
-    endif
-  endfor
-endfunction
-
-
-## Embed the lonely dark dot at left bottom corner.  JISX0510:2004 (p.46)
-function matrix = embedDarkDotAtLeftBottomCorner(matrix)
-  if (matrix(9, end - 9) == 0)
-    error ("MaskUtil: embedDarkDotAtLeftBottomCorner");
-  endif
-  matrix(9, end - 9) = 1;
-endfunction
-
-
-function matrix = embedHorizontalSeparationPattern(xStart, yStart, matrix)
-  if (any (matrix((xStart:xStart + 8), yStart) != -1))
-    error ("MaskUtil: embedHorizontalSeparationPattern");
-  endif
-  matrix((xStart:xStart + 8), yStart) = 0;
-endfunction
-
-
-function matrix = embedVerticalSeparationPattern(xStart, yStart, matrix)
-  if (any (matrix(xStart, (yStart:yStart + 7)) != -1))
-    error ("MaskUtil: embedVerticalSeparationPattern");
-  endif
-  matrix(xStart, (yStart:yStart + 7)) = 0;
-endfunction
-
-
-function matrix = embedPositionAdjustmentPattern(xStart, yStart, matrix)
-  for (int y = 0; y < 5; ++y) {
-    int[] patternY = POSITION_ADJUSTMENT_PATTERN[y];
-    for (int x = 0; x < 5; ++x) {
-      matrix.set(xStart + x, yStart + y, patternY[x]);
-    }
-  }
-endfunction
-
-
-function matrix = embedPositionDetectionPattern(xStart, yStart, matrix)
-  for (int y = 0; y < 7; ++y) {
-    int[] patternY = POSITION_DETECTION_PATTERN[y];
-    for (int x = 0; x < 7; ++x) {
-      matrix.set(xStart + x, yStart + y, patternY[x]);
-    }
-  }
-endfunction
-
-
-## Embed position detection patterns and surrounding vertical/horizontal
-## separators.
-function matrix = embedPositionDetectionPatternsAndSeparators (matrix)
-  ## Embed three big squares at corners.
-  pdpWidth = POSITION_DETECTION_PATTERN[0].length;
-  ## Left top corner.
-  embedPositionDetectionPattern(0, 0, matrix);
-  ## Right top corner.
-  embedPositionDetectionPattern(matrix.getWidth() - pdpWidth, 0, matrix);
-  ## Left bottom corner.
-  embedPositionDetectionPattern(0, matrix.getWidth() - pdpWidth, matrix);
-
-  ## Embed horizontal separation patterns around the squares.
-  hspWidth = 8;
-  ## Left top corner.
-  embedHorizontalSeparationPattern(0, hspWidth - 1, matrix);
-  ## Right top corner.
-  embedHorizontalSeparationPattern(matrix.getWidth() - hspWidth, hspWidth - 1, matrix);
-  ## Left bottom corner.
-  embedHorizontalSeparationPattern(0, matrix.getWidth() - hspWidth, matrix);
-
-  ## Embed vertical separation patterns around the squares.
-  vspSize = 7;
-  ## Left top corner.
-  embedVerticalSeparationPattern(vspSize, 0, matrix);
-  ## Right top corner.
-  embedVerticalSeparationPattern(matrix.getHeight() - vspSize - 1, 0, matrix);
-  ## Left bottom corner.
-  embedVerticalSeparationPattern(vspSize, matrix.getHeight() - vspSize, matrix);
-endfunction
-
-
 ## Embed position adjustment patterns if need be.
 function matrix = maybeEmbedPositionAdjustmentPatterns(ver, matrix)
   if (ver < 2)  # The patterns appear if version >= 2
     return;
   endif
-  coordinates = POSITION_ADJUSTMENT_PATTERN_COORDINATE_TABLE[ver];
-  for (int y : coordinates) {
-    if (y >= 0) {
-      for (int x : coordinates) {
-        if (x >= 0 && isEmpty(matrix.get(x, y))) {
+  ## From Appendix E. Table 1, JIS0510X:2004 (p 71).  The table was double-
+  ## checked by komatsu.
+  POSITION_ADJUSTMENT_PATTERN_COORDINATE_TABLE = [ ...
+    -1, -1, -1, -1,  -1,  -1,  -1; ... # Version 1
+     6, 18, -1, -1,  -1,  -1,  -1; ... # Version 2
+     6, 22, -1, -1,  -1,  -1,  -1; ... # Version 3
+     6, 26, -1, -1,  -1,  -1,  -1; ... # Version 4
+     6, 30, -1, -1,  -1,  -1,  -1; ... # Version 5
+     6, 34, -1, -1,  -1,  -1,  -1; ... # Version 6
+     6, 22, 38, -1,  -1,  -1,  -1; ... # Version 7
+     6, 24, 42, -1,  -1,  -1,  -1; ... # Version 8
+     6, 26, 46, -1,  -1,  -1,  -1; ... # Version 9
+     6, 28, 50, -1,  -1,  -1,  -1; ... # Version 10
+     6, 30, 54, -1,  -1,  -1,  -1; ... # Version 11
+     6, 32, 58, -1,  -1,  -1,  -1; ... # Version 12
+     6, 34, 62, -1,  -1,  -1,  -1; ... # Version 13
+     6, 26, 46, 66,  -1,  -1,  -1; ... # Version 14
+     6, 26, 48, 70,  -1,  -1,  -1; ... # Version 15
+     6, 26, 50, 74,  -1,  -1,  -1; ... # Version 16
+     6, 30, 54, 78,  -1,  -1,  -1; ... # Version 17
+     6, 30, 56, 82,  -1,  -1,  -1; ... # Version 18
+     6, 30, 58, 86,  -1,  -1,  -1; ... # Version 19
+     6, 34, 62, 90,  -1,  -1,  -1; ... # Version 20
+     6, 28, 50, 72,  94,  -1,  -1; ... # Version 21
+     6, 26, 50, 74,  98,  -1,  -1; ... # Version 22
+     6, 30, 54, 78, 102,  -1,  -1; ... # Version 23
+     6, 28, 54, 80, 106,  -1,  -1; ... # Version 24
+     6, 32, 58, 84, 110,  -1,  -1; ... # Version 25
+     6, 30, 58, 86, 114,  -1,  -1; ... # Version 26
+     6, 34, 62, 90, 118,  -1,  -1; ... # Version 27
+     6, 26, 50, 74,  98, 122,  -1; ... # Version 28
+     6, 30, 54, 78, 102, 126,  -1; ... # Version 29
+     6, 26, 52, 78, 104, 130,  -1; ... # Version 30
+     6, 30, 56, 82, 108, 134,  -1; ... # Version 31
+     6, 34, 60, 86, 112, 138,  -1; ... # Version 32
+     6, 30, 58, 86, 114, 142,  -1; ... # Version 33
+     6, 34, 62, 90, 118, 146,  -1; ... # Version 34
+     6, 30, 54, 78, 102, 126, 150; ... # Version 35
+     6, 24, 50, 76, 102, 128, 154; ... # Version 36
+     6, 28, 54, 80, 106, 132, 158; ... # Version 37
+     6, 32, 58, 84, 110, 136, 162; ... # Version 38
+     6, 26, 54, 82, 110, 138, 166; ... # Version 39
+     6, 30, 58, 86, 114, 142, 170];    # Version 40
+  coordinates = POSITION_ADJUSTMENT_PATTERN_COORDINATE_TABLE(ver,:);
+  for y = coordinates
+    if (y >= 1)
+      for x = coordinates
+        if ((x >= 1) && (matrix(y + 1, x + 1) == -1))
           ## If the cell is unset, we embed the position adjustment pattern
           ## here.  -2 is necessary since the x/y coordinates point to the
           ## center of the pattern, not the left top corner.
-          embedPositionAdjustmentPattern(x - 2, y - 2, matrix);
-        }
-      }
-    }
-  }
+          matrix(y - 1:y + 3, x - 1:x + 3) = [ ...
+            1, 1, 1, 1, 1;
+            1, 0, 0, 0, 1;
+            1, 0, 1, 0, 1;
+            1, 0, 0, 0, 1;
+            1, 1, 1, 1, 1];
+        endif
+      endfor
+    endif
+  endfor
 endfunction
