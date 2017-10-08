@@ -52,11 +52,10 @@ public final class QREncoder {
    *          text to encode
    * @return {@link QRCode} representing the encoded QR code
    */
-  public static QRCode encode(String content) throws WriterException {
+  public static QRCode encode(String content, ErrorCorrectionLevel ecLevel) throws WriterException {
 
   String DEFAULT_BYTE_MODE_ENCODING = "ISO-8859-1"; // Constant
   String encoding = DEFAULT_BYTE_MODE_ENCODING;     // Param
-  ErrorCorrectionLevel ecLevel = ErrorCorrectionLevel.L; // Param
 
   // Pick an encoding mode appropriate for the content. Note that this will not
   // attempt to use

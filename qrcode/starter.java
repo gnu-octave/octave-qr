@@ -4,7 +4,7 @@ public class starter {
   public static void main(String[] args) {
   QRCode code = null;
   try {
-    code = QREncoder.encode("Hi, this is a pretty long string to be encoded");
+    code = QREncoder.encode("Hi, this is a pretty long string to be encoded", ErrorCorrectionLevel.L);
   } catch (WriterException e) {
     e.printStackTrace();
   }
