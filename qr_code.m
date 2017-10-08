@@ -1,39 +1,75 @@
+## Copyright (C) 2008 ZXing authors
+## Copyright (C) 2017 Kai T. Ohlhus <k.ohlhus@gmail.com>
 ##
-## Copyright 2008 ZXing authors
-##
-## Licensed under the Apache License, Version 2.0 (the "License");
-## you may not use this file except in compliance with the License.
-## You may obtain a copy of the License at
-##
-##      http://www.apache.org/licenses/LICENSE-2.0
-##
-## Unless required by applicable law or agreed to in writing, software
-## distributed under the License is distributed on an "AS IS" BASIS,
-## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-## See the License for the specific language governing permissions and
-## limitations under the License.
-##
+## This program is free software; you can redistribute it and/or modify it
+## under the terms of the GNU General Public License as published by
+## the Free Software Foundation; either version 3 of the License, or
+## (at your option) any later version.
+## 
+## This program is distributed in the hope that it will be useful, but
+## WITHOUT ANY WARRANTY; without even the implied warranty of
+## MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+## GNU General Public License for more details.
+## 
+## You should have received a copy of the GNU General Public License
+## along with this program.  If not, see
+## <http://www.gnu.org/licenses/>.
 
-## Author Satoru Takabayashi <satorux@google.com>
+## -*- texinfo -*-
+## @deftypefn  {} {@var{code} =} qr_code (@var{content})
+## @deftypefnx {} {@var{code} =} qr_code (@var{content}, @var{ec_level})
+## @deftypefnx {} {[@var{code}, @var{info}] =} qr_code (@dots{})
+##
+## Generates a QR-Code matrix @var{code} from a string @var{content}.
+##
+## The optional input parameter @var{ec_level} determines the level of error
+## correction:
+##
+## @table @asis
+## @item @qcode{"L"}
+## ~7% correction.
+##
+## @item @qcode{"M"}
+## ~15 correction.
+##
+## @item @qcode{"Q"}
+## ~25% correction.
+##
+## @item @qcode{"H"}
+## ~30% correction.
+## @end table
+##
+## The optional return value @var{info} contains a struct with some
+## information about the generated QR-Code @var{code}.
+##
+## An example for generating a QR-Code containg the string
+## @qcode{"Hello World!!!"} with ~7% error correction:
+##
+## @example
+## [code, info] = qr_code ("Hello World!!!", "L");
+## @end example
+##
+## @seealso{plot_qr_code}
+## @end deftypefn
+
+## Author: Satoru Takabayashi <satorux@google.com>
 ## Ported from C++       by Daniel Switkin <dswitkin@google.com>
 ## Ported from Java 2017 by Kai T. Ohlhus <k.ohlhus@gmail.com>
 
-function qrCode = qrcode (content)
-  content = "Hi, this is a pretty long string to be encoded";
+function [code, info] = qr_code (content, varargin)
   javaaddpath ([pwd(), filesep(), "qrcode.jar"]);
 
-  ## Character set according to "Extended Channel Interpretations" 5.3.1.1
-  ## of ISO 18004.
-  encoding = "ISO-8859-1"; ## ECI
-  
-  ## L(0x01)   ~7% correction
-  ## M(0x00)  ~15% correction
-  ## Q(0x03)  ~25% correction
-  ## H(0x02)  ~30% correction
-  ecLevel     = 'L';
-  ecLevelBits = 0x01;
+  switch (nargin)
+    case 1
+      info.ec_level = 'L';
+    case 2
+      info.ec_level = validatestring (varargin{1}, {'L', 'M', 'Q', 'H'});
+    otherwise
+      print_usage ();
+  endswitch
 
   ## Byte encoding.  See ISO 18004:2006, 6.4.1, Tables 2 and 3.
+  info.mode = "BYTE";
   mode_indicator = 0x04;
 
   ## This will store the header information, like mode and length, as well as
@@ -57,7 +93,7 @@ function qrCode = qrcode (content)
   ## Hard part: need to know version to know how many bits length takes.  But
   ## need to know how many bits it takes to know version.  First we take a
   ## guess at version by assuming version will be the minimum, 1:
-  version = 1;
+  info.version = 1;
   bits_per_char = 8;
   bits_needed =  headerBits.getSize () + dataBits.getSize ();
 
@@ -66,31 +102,32 @@ function qrCode = qrcode (content)
   numBlocks = 0;
   numDataBytes = 0;
 
-  for versionNum = 1:40
-    version = versionNum;
-    if (version > 9)
+  for v = 1:40
+    info.version = v;
+    if (v > 9)
       bits_per_char = 16;
     endif
 
     ## In the following comments, we use as example numbers of "version = 7"
-    ## and "ecLevel = H".
+    ## and "info.ec_level = H".
 
-    ecBlocks_struct = getfield ({version_ecb_array(version)}{1}, 'L');
+    ecBlocks_struct = getfield ({version_ecb_array(info.version)}{1}, 'L');
     ## numBytes = 196, Version.getTotalCodewords()
     numBytes = ecBlocks_struct.ecBlocks;
     numBytes(:, 2) += ecBlocks_struct.ecCodewordsPerBlock;
     numBytes = prod (numBytes, 2);
 
     ## numEcBytes = 130
-    ecBlocks_struct = getfield ({version_ecb_array(version)}{1}, ecLevel);
+    ecBlocks_struct = getfield ({version_ecb_array(info.version)}{1}, ...
+      info.ec_level);
     numBlocks = sum (ecBlocks_struct.ecBlocks(:,1));
     numEcBytes = numBlocks * ecBlocks_struct.ecCodewordsPerBlock;
     ## numDataBytes = 196 - 130 = 66
     numDataBytes = numBytes - numEcBytes;
     totalInputBytes = floor ((bits_needed + bits_per_char + 7) / 8);
 
-    if (version == 40 && numDataBytes < totalInputBytes)
-      error ("qrcode: version choice failed.");
+    if ((v == 40) && (numDataBytes < totalInputBytes))
+      error ("qr_code: version choice failed.");
     elseif (numDataBytes >= totalInputBytes)
       break;
     endif
@@ -102,7 +139,7 @@ function qrCode = qrcode (content)
   ## Append length info.
   num_chars = dataBits.getSizeInBytes();
   if (num_chars >= 2^bits_per_char)
-    error ("qrcode: Appending length info %d >= %d.", num_chars, ...
+    error ("qr_code: Appending length info %d >= %d.", num_chars, ...
       2^bits_per_char);
   endif
   headerAndDataBits.appendBits(num_chars, bits_per_char);
@@ -113,7 +150,7 @@ function qrCode = qrcode (content)
   ## Terminate bits as described in 8.4.8 and 8.4.9 of JISX0510:2004 (p.24).
   capacity = numDataBytes * 8;
   if (headerAndDataBits.getSize() > capacity)
-    error ("qrcode: data bits cannot fit in the QR Code %d > %d.",
+    error ("qr_code: data bits cannot fit in the QR Code %d > %d.",
       headerAndDataBits.getSize(), capacity);
   endif
 
@@ -143,55 +180,53 @@ function qrCode = qrcode (content)
     headerAndDataBits.appendBits(val, 8);
   endfor
   if (headerAndDataBits.getSize() != capacity)
-    error ("qrcode: Bits size != capacity.");
+    error ("qr_code: Bits size != capacity.");
   endif
 
   ## Interleave data bits with error correction code.
   finalBits = interleaveWithECBytes (headerAndDataBits, numBytes, numDataBytes,
                                      numBlocks);
-  
-  ## Choose the mask pattern and set to "qrCode".
-  qr_code_dimension = 17 + 4 * version;
 
-  minPenalty = intmax ("int32");  # Lower penalty is better.
-  mask_pattern = -1;
-  qrCode = [];
+  ## Bits for ec_level
+  ##   L(0x01)   ~7% correction
+  ##   M(0x00)  ~15% correction
+  ##   Q(0x03)  ~25% correction
+  ##   H(0x02)  ~30% correction
+  switch (info.ec_level)
+    case 'L'
+      ec_level_bits = 0x01;
+    case 'M'
+      ec_level_bits = 0x00;
+    case 'Q'
+      ec_level_bits = 0x03;
+    case 'H'
+      ec_level_bits = 0x02;
+    otherwise
+      error ("qr_code: Invalid ec_level, one of 'L', 'M', 'Q', or 'H'");
+  end
+
+  ## Choose the mask pattern and set to "code".
+  qr_code_dimension = 17 + 4 * info.version;
+  min_penalty = intmax ("int32");  # Lower penalty is better.
 
   ## We try all mask patterns to choose the best one.
-  for maskPattern = 0:7
-    ## TODO: does not work because static
-    matrix = MatrixUtil (finalBits, ecLevelBits, version, maskPattern, qr_code_dimension);
-    ## TODO: does not work because static
+  for mask_pattern = 0:7
+    matrix = MatrixUtil (finalBits, ec_level_bits, info.version, ...
+                         mask_pattern, qr_code_dimension);
+    ## The mask penalty calculation is complicated.  See Table 21 of
+    ## JISX0510:2004 (p.45) for details.  Basically it applies four rules and
+    ## summate all penalties.
     penalty = calculateMaskPenalty (matrix);
-    if (penalty < minPenalty)
-      minPenalty = penalty;
-      mask_pattern = maskPattern;
-      qrCode = matrix;
+    if (penalty < min_penalty)
+      min_penalty = penalty;
+      info.mask_pattern = mask_pattern;
+      code = matrix;
     endif
   endfor
-
-  disp ("QRCode done:");
-  disp ("  mode: BYTE");
-  fprintf ("  ecLevel: %c", ecLevel);
-  fprintf ("  version: %d", version);
-  fprintf ("  maskPattern: %d", mask_pattern);
-endfunction
-
-
-## The mask penalty calculation is complicated.  See Table 21 of JISX0510:2004
-## (p.45) for details.  Basically it applies four rules and summate all
-## penalties.
-
-function mask_penalty = calculateMaskPenalty (matrix)
-  mask_penalty = MaskUtil.applyMaskPenaltyRule1(matrix)
-                 + MaskUtil.applyMaskPenaltyRule2(matrix)
-                 + MaskUtil.applyMaskPenaltyRule3(matrix)
-                 + MaskUtil.applyMaskPenaltyRule4(matrix);
 endfunction
 
 
 ## Returns the code point of the table used in alphanumeric mode
-
 function acode = getAlphanumericCode (code)
   ## The original table is defined in the table 5 of JISX0510:2004 (p.19).
   persistent ALPHANUMERIC_TABLE = [ ...
@@ -201,7 +236,7 @@ function acode = getAlphanumericCode (code)
    0,  1,  2,  3,  4,  5,  6,  7,  8,  9, 44, -1, -1, -1, -1, -1,  # 0x30-0x3f
   -1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,  # 0x40-0x4f
   25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, -1, -1, -1, -1, -1]; # 0x50-0x5f
-  
+
   acode = ALPHANUMERIC_TABLE(code);
 endfunction
 
@@ -209,12 +244,11 @@ endfunction
 ## Get number of data bytes and number of error correction bytes for block id
 ## "blockID". Store the result in "numDataBytesInBlock", and
 ## "numECBytesInBlock". See table 12 in 8.5.1 of JISX0510:2004 (p.30)
-
 function [numDataBytesInBlock, numECBytesInBlock] = ...
   getNumDataBytesAndNumECBytesForBlockID (numTotalBytes, numDataBytes, ...
                                           numRSBlocks, blockID)
   if (blockID > numRSBlocks)
-    error ("qrcode: Block ID too large");
+    error ("qr_code: Block ID too large");
   endif
   ## numRsBlocksInGroup2 = 196 % 5 = 1
   numRsBlocksInGroup2 = mod (numTotalBytes, numRSBlocks);
@@ -235,18 +269,18 @@ function [numDataBytesInBlock, numECBytesInBlock] = ...
   ## Sanity checks.
   ## 26 = 26
   if (numEcBytesInGroup1 != numEcBytesInGroup2)
-    error ("qrcode: EC bytes mismatch");
+    error ("qr_code: EC bytes mismatch");
   endif
   ## 5 = 4 + 1.
   if (numRSBlocks != numRsBlocksInGroup1 + numRsBlocksInGroup2)
-    error ("qrcode: RS blocks mismatch");
+    error ("qr_code: RS blocks mismatch");
   endif
   ## 196 = (13 + 26) * 4 + (14 + 26) * 1
   compare_total_bytes = ...
       ((numDataBytesInGroup1 + numEcBytesInGroup1) * numRsBlocksInGroup1) ...
     + ((numDataBytesInGroup2 + numEcBytesInGroup2) * numRsBlocksInGroup2);
   if (numTotalBytes != compare_total_bytes)
-    error ("qrcode: Total bytes mismatch");
+    error ("qr_code: Total bytes mismatch");
   endif
 
   if (blockID - 1 < numRsBlocksInGroup1)
@@ -262,11 +296,10 @@ endfunction
 ## Interleave "bits" with corresponding error correction bytes.  On success,
 ## store the result in "result". The interleave rule is complicated. See 8.6
 ## of JISX0510:2004 (p.37) for details.
-
 function result = interleaveWithECBytes(bits, numTotalBytes, numDataBytes, numRSBlocks)
   ## "bits" must have "getNumDataBytes" bytes of data.
   if (bits.getSizeInBytes() != numDataBytes)
-    error ("qrcode: Number of bits and data bytes does not match");
+    error ("qr_code: Number of bits and data bytes does not match");
   endif
 
   ## Step 1. Divide data bytes into blocks and generate error correction bytes
@@ -290,7 +323,7 @@ function result = interleaveWithECBytes(bits, numTotalBytes, numDataBytes, numRS
     rse = javaObject ("qrcode.ReedSolomonEncoder");
     to_encode = javaMethod ("encode", rse, to_encode, numEcBytesInBlock);
     ecBytes = to_encode(end-numEcBytesInBlock+1:end);
-  
+
     blocks(i,:) = {dataBytes, ecBytes};
 
     maxNumDataBytes = max (maxNumDataBytes, numDataBytesInBlock);
@@ -298,7 +331,7 @@ function result = interleaveWithECBytes(bits, numTotalBytes, numDataBytes, numRS
     dataBytesOffset += numDataBytesInBlock;
   endfor
   if (numDataBytes != dataBytesOffset)
-    error ("qrcode: Data bytes does not match offset");
+    error ("qr_code: Data bytes does not match offset");
   endif
 
   result = BitArray();
@@ -322,7 +355,16 @@ function result = interleaveWithECBytes(bits, numTotalBytes, numDataBytes, numRS
     endfor
   endfor
   if (numTotalBytes != result.getSizeInBytes())
-    error ("qrcode: Interleaving error: %d and %d differ.", numTotalBytes, ...
+    error ("qr_code: Interleaving error: %d and %d differ.", numTotalBytes, ...
       result.getSizeInBytes());
   endif
 endfunction
+
+%!test
+%! test_case = qr_test(2);
+%! [code, info] = qr_code (test_case.str, test_case.ec_level);
+%! assert (test_case.matrix,       code);
+%! assert (test_case.ec_level,     info.ec_level);
+%! assert (test_case.mode,         info.mode);
+%! assert (test_case.version,      info.version);
+%! assert (test_case.mask_pattern, info.mask_pattern);

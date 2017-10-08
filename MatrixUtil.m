@@ -85,8 +85,8 @@ endfunction
 
 
 ## Embed version information if need be. On success, modify the matrix and
-## return true.
-## See 8.10 of JISX0510:2004 (p.47) for how to embed version information.
+## return true.  See 8.10 of JISX0510:2004 (p.47) for how to embed version
+## information.
 function matrix = maybeEmbedVersionInfo(ver, matrix)
   if (ver < 7)  ## Version info is necessary if version >= 7.
     return;
@@ -108,41 +108,71 @@ function matrix = maybeEmbedVersionInfo(ver, matrix)
 endfunction
 
 
-## Embed "dataBits" using "getMaskPattern". On success, modify the matrix and
-## return true.
-## For debugging purposes, it skips masking process if "getMaskPattern" is -1.
-## See 8.7 of JISX0510:2004 (p.38) for how to embed data bits.
+## Return the mask bit for "getMaskPattern" at "x" and "y".  See 8.8 of
+## JISX0510:2004 for mask pattern conditions.
+function bool = getDataMaskBit (maskPattern, x, y)
+  x = uint32 (x - 1);
+  y = uint32 (y - 1);
+  switch (maskPattern)
+    case 0
+      intermediate = bitand ((y + x), 0x1);
+    case 1
+      intermediate = bitand (y, 0x1);
+    case 2
+      intermediate = mod (x, 3);
+    case 3
+      intermediate = mod ((y + x), 3);
+    case 4
+      intermediate = bitand (((y / 2) + (x / 3)), 0x1);
+    case 5
+      temp = y * x;
+      intermediate = bitand (temp, 0x1) + mod (temp, 3);
+    case 6
+      temp = y * x;
+      intermediate = bitand ((bitand (temp, 0x1) + mod (temp, 3)), 0x1);
+    case 7
+      temp = y * x;
+      intermediate = bitand ((mod (temp, 3) + bitand ((y + x), 0x1)), 0x1);
+    otherwise
+      error ("Invalid mask pattern: %d.", maskPattern);
+  endswitch
+  bool = (intermediate == 0);
+endfunction
+
+## Embed "dataBits" using "getMaskPattern".  On success, modify the matrix and
+## return true.  For debugging purposes, it skips masking process if
+## "getMaskPattern" is -1..  See 8.7 of JISX0510:2004 (p.38) for how to embed
+## data bits.
 function matrix = embedDataBits(dataBits, maskPattern, matrix)
-  bitIndex = 0;
+  bitIndex = 1;
   direction = -1;
   ## Start from the right bottom cell.
-  [x, y] = size (matrix);
-  x -= 1;
-  while (x > 0)
+  [y, x] = size (matrix);
+  while (x > 1)
     ## Skip the vertical timing pattern.
-    if (x == 6)
+    if (x == 7)
       x -= 1;
     endif
     while (y >= 1 && y <= size (matrix, 2))
       for i = 0:1
         xx = x - i;
         ## Skip the cell if it's not empty.
-        if (matrix(xx, y) != -1)
+        if (matrix(y, xx) != -1)
           continue;
         endif
         ## Padding bit. If there is no bit left, we'll fill the left cells
         ## with 0, as described in 8.4.9 of JISX0510:2004 (p. 24).
         bit = false;
-        if (bitIndex < dataBits.getSize())
+        if (bitIndex <= dataBits.getSize())
           bit = dataBits.get(bitIndex);
           bitIndex++;
         endif
 
         ## Skip masking if mask_pattern is -1.
-        if (maskPattern != -1 && MaskUtil.getDataMaskBit(maskPattern, xx, y))
+        if (maskPattern != -1 && getDataMaskBit (maskPattern, xx, y))
           bit = !bit;
         endif
-        matrix(xx, y) = bit;
+        matrix(y, xx) = bit;
       endfor
       y += direction;
     endwhile
@@ -151,7 +181,7 @@ function matrix = embedDataBits(dataBits, maskPattern, matrix)
     x -= 2; ## Move to the left.
   endwhile
   ## All bits should be consumed.
-  if (bitIndex != dataBits.getSize())
+  if (bitIndex - 1 != dataBits.getSize())
     error ("MatrixUtil: Not all bits consumed: %d/%d", bitIndex, ...
       dataBits.getSize());
   endif
