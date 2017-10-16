@@ -361,10 +361,19 @@ function result = interleaveWithECBytes(bits, numTotalBytes, numDataBytes, numRS
 endfunction
 
 %!test
+%! test_case = qr_test(1);
+%! [code, info] = qr_code (test_case.str, test_case.ec_level);
+%! assert (info.ec_level,     test_case.ec_level);
+%! assert (info.mode,         test_case.mode);
+%! assert (info.version,      test_case.version);
+%! assert (info.mask_pattern, test_case.mask_pattern);
+%! assert (code,              test_case.matrix);
+
+%!test
 %! test_case = qr_test(2);
 %! [code, info] = qr_code (test_case.str, test_case.ec_level);
-%! assert (test_case.matrix,       code);
-%! assert (test_case.ec_level,     info.ec_level);
-%! assert (test_case.mode,         info.mode);
-%! assert (test_case.version,      info.version);
-%! assert (test_case.mask_pattern, info.mask_pattern);
+%! assert (info.ec_level,     test_case.ec_level);
+%! assert (info.mode,         test_case.mode);
+%! assert (info.version,      test_case.version);
+%! assert (info.mask_pattern, test_case.mask_pattern);
+%! assert (code,              test_case.matrix);
