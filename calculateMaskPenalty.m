@@ -95,13 +95,13 @@ function numPenalties = applyMaskPenaltyRule3 (matrix)
     for x = 1:width
       if (((x + 6) <= width)
           && all (matrix(y, x:(x + 6)) == [1 0 1 1 1 0 1])
-          && (all (matrix(y, max(1,x-4):x) == 0)
+          && (all (matrix(y, max(1,x-4):(x-1)) == 0)
               || all (matrix(y, (x + 7):min(width, x + 11)) == 0)))
         numPenalties++;
       endif
       if (((y + 6) <= height)
-          && (matrix(y:(y + 6), x) == [1 0 1 1 1 0 1])
-          && (all (matrix(max(1,y-4):y, x) == 0)
+          && all (matrix(y:(y + 6), x) == [1 0 1 1 1 0 1]')
+          && (all (matrix(max(1,y-4):(y-1), x) == 0)
               || all (matrix((y + 7):min(width, y + 11), x) == 0)))
         numPenalties++;
       endif
@@ -118,5 +118,5 @@ function fivePercentVariances = applyMaskPenaltyRule4 (matrix)
   [height, width] = size (matrix);
   numTotalCells = height * width;
   fivePercentVariances = ...
-    abs(numDarkCells * 2 - numTotalCells) * 10 / numTotalCells;
+    floor (abs (numDarkCells * 2 - numTotalCells) * 10 / numTotalCells);
 endfunction
